@@ -9,3 +9,7 @@ require("present").start_presentation {}
 ```
 
 Use `n`, and `p` to navigate markdow slides
+
+# Credits
+
+teej_dv
