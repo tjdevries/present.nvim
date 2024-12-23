@@ -11,9 +11,6 @@ jobs:
       matrix:
         os: [ubuntu-22.04]
         rev: [nightly]
-        include:
-          - os: ubuntu-22.04
-            install-rg: sudo apt-get update && sudo apt-get install -y ripgrep
 
     steps:
       - uses: actions/checkout@v4
@@ -25,9 +22,6 @@ jobs:
 
       - name: Prepare
         run: |
-          ${{ matrix.install-rg }}
-          rg --version
-
           git clone --depth 1 https://github.com/nvim-lua/plenary.nvim ../plenary.nvim
 
       - name: Run tests
