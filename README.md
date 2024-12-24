@@ -20,6 +20,30 @@ You may need to configure this with `opts.executors`, only have Python and Javas
 print("yaayayayaya python")
 ```
 
+# Installation
+
+### [vim-plug](https://github.com/junegunn/vim-plug)
+
+```vim
+Plug 'tjdevries/present.nvim'
+```
+
+### [packer.nvim](https://github.com/wbthomason/packer.nvim)
+
+```lua
+use {
+  'tjdevries/present.nvim'
+}
+```
+
+### [lazy.nvim](https://github.com/folke/lazy.nvim)
+
+```lua
+{
+    'tjdevries/present.nvim'
+}
+```
+
 # Usage
 
 ```lua
