@@ -1,5 +1,6 @@
 local M = {}
 
+
 local function create_floating_window(config, enter)
   if enter == nil then
     enter = false
@@ -57,6 +58,12 @@ M.create_system_executor = function(program)
 end
 
 local options = {
+  keymaps = {
+    slide_next = 'n',
+    slide_previous = 'p',
+    present_quit = 'q',
+    code_execute = 'X',
+  },
   executors = {
     lua = execute_lua_code,
     javascript = M.create_system_executor "node",
@@ -72,6 +79,10 @@ M.setup = function(opts)
   opts.executors.javascript = opts.executors.lua or M.create_system_executor "node"
   opts.executors.python = opts.executors.lua or M.create_system_executor "python"
 
+  opts.keymaps.slide_next = opts.keymaps.slide_next or 'n'
+  opts.keymaps.slide_previous = opts.keymaps.slide_previous or 'p'
+  opts.keymaps.present_quit = opts.keymaps.present_quit or 'q'
+  opts.keymaps.code_execute = opts.keymaps.code_execute or 'X'
   options = opts
 end
 
@@ -255,21 +266,21 @@ M.start_presentation = function(opts)
     vim.api.nvim_buf_set_lines(state.floats.footer.buf, 0, -1, false, { footer })
   end
 
-  present_keymap("n", "n", function()
+  present_keymap("n", options.keymaps.slide_next, function()
     state.current_slide = math.min(state.current_slide + 1, #state.parsed.slides)
     set_slide_content(state.current_slide)
   end)
 
-  present_keymap("n", "p", function()
+  present_keymap("n", options.keymaps.slide_previous, function()
     state.current_slide = math.max(state.current_slide - 1, 1)
     set_slide_content(state.current_slide)
   end)
 
-  present_keymap("n", "q", function()
+  present_keymap("n", options.keymaps.present_quit, function()
     vim.api.nvim_win_close(state.floats.body.win, true)
   end)
 
-  present_keymap("n", "X", function()
+  present_keymap("n", options.keymaps.code_execute, function()
     local slide = state.parsed.slides[state.current_slide]
     -- TODO: Make a way for people to execute this for other languages
     local block = slide.blocks[1]
