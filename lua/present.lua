@@ -256,12 +256,21 @@ M.start_presentation = function(opts)
   end
 
   present_keymap("n", "n", function()
-    state.current_slide = math.min(state.current_slide + 1, #state.parsed.slides)
+    if opts.circular_slide == true and state.current_slide >= #state.parsed.slides then
+      state.current_slide = 1
+    else
+      state.current_slide = math.min(state.current_slide + 1, #state.parsed.slides)
+    end
+
     set_slide_content(state.current_slide)
   end)
 
   present_keymap("n", "p", function()
-    state.current_slide = math.max(state.current_slide - 1, 1)
+    if opts.circular_slide == true and state.current_slide - 1 <= 0 then
+      state.current_slide = #state.parsed.slides
+    else
+      state.current_slide = math.max(state.current_slide - 1, 1)
+    end
     set_slide_content(state.current_slide)
   end)
 
