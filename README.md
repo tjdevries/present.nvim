@@ -14,7 +14,7 @@ print("Hello world", 37, true)
 
 Can execute code in Language blocks, when you have them in a slide.
 
-You may need to configure this with `opts.executors`, only have Python and Javascript by default.
+You may need to configure this with `opts.executors`, only have Lua, Python, Javascript, and Rust by default.
 
 ```python
 print("yaayayayaya python")

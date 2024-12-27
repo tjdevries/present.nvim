@@ -47,6 +47,21 @@ local execute_lua_code = function(block)
   return output
 end
 
+--- Default executor for Rust code
+---@param block present.Block
+local execute_rust_code = function(block)
+	local tempfile = vim.fn.tempname() .. ".rs"
+	local outputfile = tempfile:sub(1, -4)
+	vim.fn.writefile(vim.split(block.body, "\n"), tempfile)
+	local result = vim.system({ "rustc", tempfile, "-o", outputfile }, { text = true }):wait()
+	if result.code ~= 0 then
+		local output = vim.split(result.stderr, "\n")
+		return output
+	end
+	result = vim.system({ outputfile }, { text = true }):wait()
+	return vim.split(result.stdout, "\n")
+end
+
 M.create_system_executor = function(program)
   return function(block)
     local tempfile = vim.fn.tempname()
@@ -61,6 +76,7 @@ local options = {
     lua = execute_lua_code,
     javascript = M.create_system_executor "node",
     python = M.create_system_executor "python",
+    rust = execute_rust_code,
   }
 }
 
@@ -71,6 +87,7 @@ M.setup = function(opts)
   opts.executors.lua = opts.executors.lua or execute_lua_code
   opts.executors.javascript = opts.executors.javascript or M.create_system_executor "node"
   opts.executors.python = opts.executors.python or M.create_system_executor "python"
+  opts.executors.rust = opts.executors.rust or execute_rust_code
 
   options = opts
 end
