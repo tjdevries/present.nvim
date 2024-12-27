@@ -58,4 +58,34 @@ describe("present.parse_slides", function()
       body = "print('hi')",
     }, slide.blocks[1])
   end)
+
+  it('should not treat # inside code blocks as new slides', function()
+    local results = parse {
+      '# Main slide',
+      'Some content',
+      '```bash',
+      '#this is a comment',
+      'echo hello',
+      '```',
+      'More content',
+    }
+
+    -- Should only have one slide
+    eq(1, #results.slides)
+
+    local slide = results.slides[1]
+    eq('# Main slide', slide.title)
+    eq({
+      'Some content',
+      '```bash',
+      '#this is a comment',
+      'echo hello',
+      '```',
+      'More content',
+    }, slide.body)
+    eq({
+      language = 'bash',
+      body = '#this is a comment\necho hello',
+    }, slide.blocks[1])
+  end)
 end)
