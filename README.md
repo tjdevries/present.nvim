@@ -22,20 +22,6 @@ print("yaayayayaya python")
 
 # Installation
 
-### [vim-plug](https://github.com/junegunn/vim-plug)
-
-```vim
-Plug 'tjdevries/present.nvim'
-```
-
-### [packer.nvim](https://github.com/wbthomason/packer.nvim)
-
-```lua
-use {
-  'tjdevries/present.nvim'
-}
-```
-
 ### [lazy.nvim](https://github.com/folke/lazy.nvim)
 
 ```lua
