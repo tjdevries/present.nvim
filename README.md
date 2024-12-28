@@ -20,6 +20,16 @@ You may need to configure this with `opts.executors`, only have Lua, Python, Jav
 print("yaayayayaya python")
 ```
 
+# Installation
+
+### [lazy.nvim](https://github.com/folke/lazy.nvim)
+
+```lua
+{
+    'tjdevries/present.nvim'
+}
+```
+
 # Usage
 
 ```lua
