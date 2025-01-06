@@ -20,6 +20,11 @@ You may need to configure this with `opts.executors`, only have Lua, Python, Jav
 print("yaayayayaya python")
 ```
 
+# Comments
+
+Lines starting with **--** are considered as comments, and they are not exposed
+in presentation.
+
 # Usage
 
 ```lua
