@@ -80,12 +80,23 @@ local defaults = {
 
 ---@class present.Options
 ---@field executors table<string, function>: The executors for the different languages
+---@field syntax present.SyntaxOptions: The syntax for the plugin
+
+---@class present.SyntaxOptions
+---@field comment string?: The prefix for comments, will skip lines that start with this
+---@field stop string?: The stop comment, will stop slide when found. Note: Is a Lua Pattern
 
 ---@type present.Options
 local options = {
+  syntax = {
+    comment = "%%",
+    stop = "<!%-%-%s*stop%s*%-%->",
+  },
   executors = {},
 }
 
+--- Setup the plugin
+---@param opts present.Options
 M.setup = function(opts)
   options = vim.tbl_deep_extend("force", defaults, opts or {})
 end
@@ -115,7 +126,17 @@ local parse_slides = function(lines)
 
   local separator = "^#"
 
-  for _, line in ipairs(lines) do
+  local add_line_to_block = function(slide, line)
+    line = line:gsub("%s*$", "")
+    table.insert(slide.body, line)
+  end
+
+  local process_line = function(line)
+    local comment = options.syntax.comment
+    if comment and vim.startswith(line, comment) then
+      return
+    end
+
     if line:find(separator) then
       if #current_slide.title > 0 then
         table.insert(slides.slides, current_slide)
@@ -128,18 +149,23 @@ local parse_slides = function(lines)
       }
     else
       -- TODO: I'd also like to stop %%stop?
-      if line:find("<!-- stop -->", 1, true) then
-        line = line:gsub("<!%-%- stop %-%->", "")
-        table.insert(current_slide.body, line)
+      local stop = options.syntax.stop
+      if stop and line:find(stop) then
+        line = line:gsub(stop, "")
+        add_line_to_block(current_slide, line)
 
         if #current_slide.title > 0 then
           table.insert(slides.slides, current_slide)
         end
         current_slide = vim.deepcopy(current_slide)
       else
-        table.insert(current_slide.body, line)
+        add_line_to_block(current_slide, line)
       end
     end
+  end
+
+  for _, line in ipairs(lines) do
+    process_line(line)
   end
 
   table.insert(slides.slides, current_slide)

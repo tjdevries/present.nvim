@@ -2,34 +2,37 @@
 
 Hey, this is a plugin for presenting markdown files!!
 
-# Features: Neovim Lua Execution
+# Setup
 
-Can execute code in lua blocks, when you have them in a slide
+```lua
+require("present").setup {
+    -- Check source for options :)
+    ...
+}
+```
+
+# Features
+
+- Use markdown to write slides
+    - Break one "section" into multiple "slides"
+        - Use `<!-- stop -->` comment to split a slide.
+        - Can be configured with `opts.syntax.stop`
+    - Comments are ignored
+        - Use `%% comment` to comment a line
+        - Can be configured with `opts.syntax.comment`
+    - Execute code in code blocks!
 
 ```lua
 print("Hello world", 37, true)
 ```
 
-# Features: Other Langs
-
-Can execute code in Language blocks, when you have them in a slide.
-
-You may need to configure this with `opts.executors`, only have Lua, Python, Javascript, and Rust by default.
-
 ```python
+# Configure this with `opts.executors`
 print("yaayayayaya python")
 ```
 
 # Usage
 
-```lua
-require("present").start_presentation {}
-```
+Use `:PresentStart` Command inside of a markdown file to start presenting.
 
 Use `n`, and `p` to navigate markdow slides.
-
-Or use `:PresentStart` Command
-
-# Credits
-
-teej_dv
