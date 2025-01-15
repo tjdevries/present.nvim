@@ -31,6 +31,16 @@ print("Hello world", 37, true)
 print("yaayayayaya python")
 ```
 
+# Installation
+
+### [lazy.nvim](https://github.com/folke/lazy.nvim)
+
+```lua
+{
+    'tjdevries/present.nvim'
+}
+```
+
 # Usage
 
 Use `:PresentStart` Command inside of a markdown file to start presenting.
