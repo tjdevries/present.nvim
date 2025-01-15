@@ -6,6 +6,8 @@ local eq = assert.are.same
 
 describe("present.parse_slides", function()
   it("should parse an empty file", function()
+    local slides = parse({ "" })
+
     eq({
       slides = {
         {
@@ -14,24 +16,22 @@ describe("present.parse_slides", function()
           blocks = {},
         },
       },
-    }, parse({}))
+    }, slides)
   end)
 
   it("should parse a file with one slide", function()
     eq(
       {
-        slides = {
-          {
-            title = "# This is the first slide",
-            body = { "This is the body" },
-            blocks = {},
-          },
+        {
+          title = "# This is the first slide",
+          body = { "This is the body" },
+          blocks = {},
         },
       },
       parse({
         "# This is the first slide",
         "This is the body",
-      })
+      }).slides
     )
   end)
 
@@ -59,6 +59,8 @@ describe("present.parse_slides", function()
     eq({
       language = "lua",
       body = "print('hi')",
+      start_row = 3,
+      end_row = 5,
     }, slide.blocks[1])
   end)
 
@@ -104,5 +106,31 @@ describe("present.parse_slides", function()
     slide = results.slides[2]
     eq("# This is the first slide", slide.title)
     eq({ "This is the body", "This is the final line" }, slide.body)
+  end)
+
+  it("should not interepret # as a slide inside of code block", function()
+    local results = parse({
+      "# This is the first slide",
+      "This is the body",
+      "```c",
+      "#include <stdio.h>",
+      "int main() {}",
+      "```",
+      "Same slide",
+    })
+
+    -- Should only have two slides (even though only one separator)
+    eq(1, #results.slides)
+
+    local slide = results.slides[1]
+    eq("# This is the first slide", slide.title)
+    eq({
+      "This is the body",
+      "```c",
+      "#include <stdio.h>",
+      "int main() {}",
+      "```",
+      "Same slide",
+    }, slide.body)
   end)
 end)
