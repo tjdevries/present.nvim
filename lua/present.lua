@@ -11,7 +11,6 @@ local function create_floating_window(config, enter)
   return { buf = buf, win = win }
 end
 
-
 --- Default executor for lua code
 ---@param block present.Block
 local execute_lua_code = function(block)
@@ -40,7 +39,6 @@ local execute_lua_code = function(block)
     return output
   end)
 
-
   -- Restore the original print function
   print = original_print
 
@@ -50,16 +48,16 @@ end
 --- Default executor for Rust code
 ---@param block present.Block
 local execute_rust_code = function(block)
-	local tempfile = vim.fn.tempname() .. ".rs"
-	local outputfile = tempfile:sub(1, -4)
-	vim.fn.writefile(vim.split(block.body, "\n"), tempfile)
-	local result = vim.system({ "rustc", tempfile, "-o", outputfile }, { text = true }):wait()
-	if result.code ~= 0 then
-		local output = vim.split(result.stderr, "\n")
-		return output
-	end
-	result = vim.system({ outputfile }, { text = true }):wait()
-	return vim.split(result.stdout, "\n")
+  local tempfile = vim.fn.tempname() .. ".rs"
+  local outputfile = tempfile:sub(1, -4)
+  vim.fn.writefile(vim.split(block.body, "\n"), tempfile)
+  local result = vim.system({ "rustc", tempfile, "-o", outputfile }, { text = true }):wait()
+  if result.code ~= 0 then
+    local output = vim.split(result.stderr, "\n")
+    return output
+  end
+  result = vim.system({ outputfile }, { text = true }):wait()
+  return vim.split(result.stdout, "\n")
 end
 
 M.create_system_executor = function(program)
@@ -74,10 +72,10 @@ end
 local options = {
   executors = {
     lua = execute_lua_code,
-    javascript = M.create_system_executor "node",
-    python = M.create_system_executor "python",
+    javascript = M.create_system_executor("node"),
+    python = M.create_system_executor("python"),
     rust = execute_rust_code,
-  }
+  },
 }
 
 M.setup = function(opts)
@@ -85,8 +83,8 @@ M.setup = function(opts)
   opts.executors = opts.executors or {}
 
   opts.executors.lua = opts.executors.lua or execute_lua_code
-  opts.executors.javascript = opts.executors.javascript or M.create_system_executor "node"
-  opts.executors.python = opts.executors.python or M.create_system_executor "python"
+  opts.executors.javascript = opts.executors.javascript or M.create_system_executor("node")
+  opts.executors.python = opts.executors.python or M.create_system_executor("python")
   opts.executors.rust = opts.executors.rust or execute_rust_code
 
   options = opts
@@ -126,10 +124,21 @@ local parse_slides = function(lines)
       current_slide = {
         title = line,
         body = {},
-        blocks = {}
+        blocks = {},
       }
     else
-      table.insert(current_slide.body, line)
+      -- TODO: I'd also like to stop %%stop?
+      if line:find("<!-- stop -->", 1, true) then
+        line = line:gsub("<!%-%- stop %-%->", "")
+        table.insert(current_slide.body, line)
+
+        if #current_slide.title > 0 then
+          table.insert(slides.slides, current_slide)
+        end
+        current_slide = vim.deepcopy(current_slide)
+      else
+        table.insert(current_slide.body, line)
+      end
     end
   end
 
@@ -169,8 +178,8 @@ local create_window_configurations = function()
   local width = vim.o.columns
   local height = vim.o.lines
 
-  local header_height = 1 + 2                                        -- 1 + border
-  local footer_height = 1                                            -- 1, no border
+  local header_height = 1 + 2 -- 1 + border
+  local footer_height = 1 -- 1, no border
   local body_height = height - header_height - footer_height - 2 - 1 -- for our own border
 
   return {
@@ -198,7 +207,7 @@ local create_window_configurations = function()
       width = width - 8,
       height = body_height,
       style = "minimal",
-      border = { " ", " ", " ", " ", " ", " ", " ", " ", },
+      border = { " ", " ", " ", " ", " ", " ", " ", " " },
       col = 8,
       row = 4,
     },
@@ -230,7 +239,7 @@ end
 
 local present_keymap = function(mode, key, callback)
   vim.keymap.set(mode, key, callback, {
-    buffer = state.floats.body.buf
+    buffer = state.floats.body.buf,
   })
 end
 
@@ -263,12 +272,7 @@ M.start_presentation = function(opts)
     vim.api.nvim_buf_set_lines(state.floats.header.buf, 0, -1, false, { title })
     vim.api.nvim_buf_set_lines(state.floats.body.buf, 0, -1, false, slide.body)
 
-    local footer = string.format(
-      "  %d / %d | %s",
-      state.current_slide,
-      #(state.parsed.slides),
-      state.title
-    )
+    local footer = string.format("  %d / %d | %s", state.current_slide, #state.parsed.slides, state.title)
     vim.api.nvim_buf_set_lines(state.floats.footer.buf, 0, -1, false, { footer })
   end
 
@@ -324,7 +328,7 @@ M.start_presentation = function(opts)
       height = temp_height,
       row = math.floor((vim.o.lines - temp_height) / 2),
       col = math.floor((vim.o.columns - temp_width) / 2),
-      border = "rounded"
+      border = "rounded",
     })
 
     vim.bo[buf].filetype = "markdown"
@@ -334,8 +338,12 @@ M.start_presentation = function(opts)
   local restore = {
     cmdheight = {
       original = vim.o.cmdheight,
-      present = 0
-    }
+      present = 0,
+    },
+    guicursor = {
+      original = vim.o.guicursor,
+      present = "n:NormalFloat",
+    },
   }
 
   -- Set the options we want during presentation
@@ -354,7 +362,7 @@ M.start_presentation = function(opts)
       foreach_float(function(_, float)
         pcall(vim.api.nvim_win_close, float.win, true)
       end)
-    end
+    end,
   })
 
   vim.api.nvim_create_autocmd("VimResized", {
@@ -373,7 +381,6 @@ M.start_presentation = function(opts)
       set_slide_content(state.current_slide)
     end,
   })
-
 
   set_slide_content(state.current_slide)
 end
