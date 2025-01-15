@@ -370,6 +370,18 @@ M.start_presentation = function(opts)
       original = vim.o.guicursor,
       present = "n:NormalFloat",
     },
+    wrap = {
+      original = vim.o.wrap,
+      present = true,
+    },
+    breakindent = {
+      original = vim.o.breakindent,
+      present = true,
+    },
+    breakindentopt = {
+      original = vim.o.breakindentopt,
+      present = "list:-1",
+    },
   }
 
   -- Set the options we want during presentation
