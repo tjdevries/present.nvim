@@ -69,7 +69,7 @@ M.create_system_executor = function(program)
   end
 end
 
-local options = {
+local defaults = {
   executors = {
     lua = execute_lua_code,
     javascript = M.create_system_executor("node"),
@@ -78,16 +78,16 @@ local options = {
   },
 }
 
+---@class present.Options
+---@field executors table<string, function>: The executors for the different languages
+
+---@type present.Options
+local options = {
+  executors = {},
+}
+
 M.setup = function(opts)
-  opts = opts or {}
-  opts.executors = opts.executors or {}
-
-  opts.executors.lua = opts.executors.lua or execute_lua_code
-  opts.executors.javascript = opts.executors.javascript or M.create_system_executor("node")
-  opts.executors.python = opts.executors.python or M.create_system_executor("python")
-  opts.executors.rust = opts.executors.rust or execute_rust_code
-
-  options = opts
+  options = vim.tbl_deep_extend("force", defaults, opts or {})
 end
 
 ---@class present.Slides
