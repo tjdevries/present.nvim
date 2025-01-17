@@ -1,5 +1,11 @@
 local M = {}
 
+local section_query = vim.treesitter.query.parse("markdown", [[(section) @section]])
+local codeblock_query = vim.treesitter.query.parse("markdown", [[(fenced_code_block) @codeblock]])
+
+-- TODO: This was returning goofy stuff
+-- local language_query =
+--   vim.treesitter.query.parse("markdown", [[(fenced_code_block (info_string (language) @language))]])
 
 local function create_floating_window(config, enter)
   if enter == nil then
@@ -11,7 +17,6 @@ local function create_floating_window(config, enter)
 
   return { buf = buf, win = win }
 end
-
 
 --- Default executor for lua code
 ---@param block present.Block
@@ -41,11 +46,25 @@ local execute_lua_code = function(block)
     return output
   end)
 
-
   -- Restore the original print function
   print = original_print
 
   return output
+end
+
+--- Default executor for Rust code
+---@param block present.Block
+local execute_rust_code = function(block)
+  local tempfile = vim.fn.tempname() .. ".rs"
+  local outputfile = tempfile:sub(1, -4)
+  vim.fn.writefile(vim.split(block.body, "\n"), tempfile)
+  local result = vim.system({ "rustc", tempfile, "-o", outputfile }, { text = true }):wait()
+  if result.code ~= 0 then
+    local output = vim.split(result.stderr, "\n")
+    return output
+  end
+  result = vim.system({ outputfile }, { text = true }):wait()
+  return vim.split(result.stdout, "\n")
 end
 
 M.create_system_executor = function(program)
@@ -57,33 +76,42 @@ M.create_system_executor = function(program)
   end
 end
 
-local options = {
+local defaults = {
+  executors = {
+    lua = execute_lua_code,
+    javascript = M.create_system_executor("node"),
+    python = M.create_system_executor("python"),
+    rust = execute_rust_code,
+  },
   keymaps = {
     slide_next = 'n',
     slide_previous = 'p',
     present_quit = 'q',
     code_execute = 'X',
   },
-  executors = {
-    lua = execute_lua_code,
-    javascript = M.create_system_executor "node",
-    python = M.create_system_executor "python",
-  }
 }
 
+---@class present.Options
+---@field executors table<string, function>: The executors for the different languages
+---@field syntax present.SyntaxOptions: The syntax for the plugin
+
+---@class present.SyntaxOptions
+---@field comment string?: The prefix for comments, will skip lines that start with this
+---@field stop string?: The stop comment, will stop slide when found. Note: Is a Lua Pattern
+
+---@type present.Options
+local options = {
+  syntax = {
+    comment = "%%",
+    stop = "<!%-%-%s*stop%s*%-%->",
+  },
+  executors = {},
+}
+
+--- Setup the plugin
+---@param opts present.Options
 M.setup = function(opts)
-  opts = opts or {}
-  opts.executors = opts.executors or {}
-
-  opts.executors.lua = opts.executors.lua or execute_lua_code
-  opts.executors.javascript = opts.executors.lua or M.create_system_executor "node"
-  opts.executors.python = opts.executors.lua or M.create_system_executor "python"
-
-  opts.keymaps.slide_next = opts.keymaps.slide_next or 'n'
-  opts.keymaps.slide_previous = opts.keymaps.slide_previous or 'p'
-  opts.keymaps.present_quit = opts.keymaps.present_quit or 'q'
-  opts.keymaps.code_execute = opts.keymaps.code_execute or 'X'
-  options = opts
+  options = vim.tbl_deep_extend("force", defaults, opts or {})
 end
 
 ---@class present.Slides
@@ -97,64 +125,112 @@ end
 ---@class present.Block
 ---@field language string: The language of the codeblock
 ---@field body string: The body of the codeblock
+---@field start_row integer: The start row of the codeblock
+---@field end_row integer: The end row of the codeblock
 
 --- Takes some lines and parses them
 ---@param lines string[]: The lines in the buffer
 ---@return present.Slides
 local parse_slides = function(lines)
+  local contents = table.concat(lines, "\n") .. "\n"
+  local parser = vim.treesitter.get_string_parser(contents, "markdown")
+  local root = parser:parse()[1]:root()
+
   local slides = { slides = {} }
-  local current_slide = {
-    title = "",
-    body = {},
-    blocks = {},
-  }
 
-  local separator = "^#"
+  local create_empty_slide = function()
+    return { title = "", body = {}, blocks = {} }
+  end
 
-  for _, line in ipairs(lines) do
-    if line:find(separator) then
-      if #current_slide.title > 0 then
-        table.insert(slides.slides, current_slide)
+  local add_line_to_block = function(slide, line)
+    if not line then
+      return
+    end
+
+    -- Trim trailing whitespace, it can have weird highlighting and whatnot
+    line = line:gsub("%s*$", "")
+    table.insert(slide.body, line)
+  end
+
+  local get_block = function(codeblocks, idx)
+    for _, codeblock in ipairs(codeblocks) do
+      if idx >= codeblock.start_row and idx <= codeblock.end_row then
+        return codeblock
+      end
+    end
+
+    return nil
+  end
+
+  local current_slide = create_empty_slide()
+  for _, node in section_query:iter_captures(root, contents, 0, -1) do
+    if #current_slide.title > 0 then
+      table.insert(slides.slides, current_slide)
+    end
+
+    local start_row, _, end_row, _ = node:range()
+    current_slide.title = lines[start_row + 1]
+    local codeblocks = vim
+        .iter(codeblock_query:iter_captures(root, contents, start_row, end_row))
+        :map(function(_, n)
+          local s, _, e, _ = n:range()
+          local language = vim.trim(string.sub(lines[s + 1], 4))
+          return {
+            language = language,
+            body = table.concat(vim.list_slice(lines, s + 2, e - 1), "\n"),
+            start_row = s + 1,
+            end_row = e,
+          }
+        end)
+        :totable()
+
+    local comment = options.syntax.comment
+    local stop = options.syntax.stop
+
+    local process_line = function(idx)
+      local line = lines[idx]
+      local block = get_block(codeblocks, idx)
+
+      -- Only do our comments/splits/etc if we are not in a codeblock
+      if not block then
+        -- Skip comment lines
+        if comment and vim.startswith(line, comment) then
+          return
+        end
+
+        -- Split on `stop` comments
+        if stop and line:find(stop) then
+          line = line:gsub(stop, "")
+          add_line_to_block(current_slide, line)
+          table.insert(slides.slides, current_slide)
+          current_slide = vim.deepcopy(current_slide)
+          return
+        end
+
+        return add_line_to_block(current_slide, line)
       end
 
-      current_slide = {
-        title = line,
-        body = {},
-        blocks = {}
-      }
-    else
-      table.insert(current_slide.body, line)
+      -- Only add code blocks to the current slide if we have
+      -- actually reached them (this could not happen because of stop comments)
+      if idx == block.start_row then
+        table.insert(current_slide.blocks, block)
+      end
+
+      -- GIVE ME THE CODE AND GIVE IT TO ME RAW
+      add_line_to_block(current_slide, lines[idx])
+    end
+
+    -- Process the lines: Add one for row->line, add one to skip the header
+    local start_of_section = start_row + 2
+    for idx = start_of_section, end_row do
+      process_line(idx)
     end
   end
 
+  -- Add the last slide, won't happen in the loop
+  --  Could probably switch to do-while loop and make Prime happy,
+  --  but that would make me sad.
   table.insert(slides.slides, current_slide)
-
-  for _, slide in ipairs(slides.slides) do
-    local block = {
-      language = nil,
-      body = "",
-    }
-    local inside_block = false
-    for _, line in ipairs(slide.body) do
-      if vim.startswith(line, "```") then
-        if not inside_block then
-          inside_block = true
-          block.language = string.sub(line, 4)
-        else
-          inside_block = false
-          block.body = vim.trim(block.body)
-          table.insert(slide.blocks, block)
-        end
-      else
-        -- OK, we are inside of a current markdown block
-        -- but it is not one of the guards.
-        -- so insert this text
-        if inside_block then
-          block.body = block.body .. line .. "\n"
-        end
-      end
-    end
-  end
 
   return slides
 end
@@ -192,7 +268,7 @@ local create_window_configurations = function()
       width = width - 8,
       height = body_height,
       style = "minimal",
-      border = { " ", " ", " ", " ", " ", " ", " ", " ", },
+      border = { " ", " ", " ", " ", " ", " ", " ", " " },
       col = 8,
       row = 4,
     },
@@ -224,7 +300,7 @@ end
 
 local present_keymap = function(mode, key, callback)
   vim.keymap.set(mode, key, callback, {
-    buffer = state.floats.body.buf
+    buffer = state.floats.body.buf,
   })
 end
 
@@ -257,12 +333,7 @@ M.start_presentation = function(opts)
     vim.api.nvim_buf_set_lines(state.floats.header.buf, 0, -1, false, { title })
     vim.api.nvim_buf_set_lines(state.floats.body.buf, 0, -1, false, slide.body)
 
-    local footer = string.format(
-      "  %d / %d | %s",
-      state.current_slide,
-      #(state.parsed.slides),
-      state.title
-    )
+    local footer = string.format("  %d / %d | %s", state.current_slide, #state.parsed.slides, state.title)
     vim.api.nvim_buf_set_lines(state.floats.footer.buf, 0, -1, false, { footer })
   end
 
@@ -318,7 +389,7 @@ M.start_presentation = function(opts)
       height = temp_height,
       row = math.floor((vim.o.lines - temp_height) / 2),
       col = math.floor((vim.o.columns - temp_width) / 2),
-      border = "rounded"
+      border = "rounded",
     })
 
     vim.bo[buf].filetype = "markdown"
@@ -328,8 +399,24 @@ M.start_presentation = function(opts)
   local restore = {
     cmdheight = {
       original = vim.o.cmdheight,
-      present = 0
-    }
+      present = 0,
+    },
+    guicursor = {
+      original = vim.o.guicursor,
+      present = "n:NormalFloat",
+    },
+    wrap = {
+      original = vim.o.wrap,
+      present = true,
+    },
+    breakindent = {
+      original = vim.o.breakindent,
+      present = true,
+    },
+    breakindentopt = {
+      original = vim.o.breakindentopt,
+      present = "list:-1",
+    },
   }
 
   -- Set the options we want during presentation
@@ -348,7 +435,7 @@ M.start_presentation = function(opts)
       foreach_float(function(_, float)
         pcall(vim.api.nvim_win_close, float.win, true)
       end)
-    end
+    end,
   })
 
   vim.api.nvim_create_autocmd("VimResized", {
@@ -367,7 +454,6 @@ M.start_presentation = function(opts)
       set_slide_content(state.current_slide)
     end,
   })
-
 
   set_slide_content(state.current_slide)
 end
