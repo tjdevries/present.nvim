@@ -160,6 +160,7 @@ local parse_slides = function(lines)
   for _, node in section_query:iter_captures(root, contents, 0, -1) do
     if #current_slide.title > 0 then
       table.insert(slides.slides, current_slide)
+      current_slide = create_empty_slide()
     end
 
     local start_row, _, end_row, _ = node:range()
