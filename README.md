@@ -6,8 +6,15 @@ Hey, this is a plugin for presenting markdown files!!
 
 ```lua
 require("present").setup {
-    -- Check source for options :)
-    ...
+
+    keymaps = {
+        slide_next = "n",
+        slide_prev = "p",
+        quit = "q",
+        execute = "X",
+    }
+
+    -- Check source for more options :)
 }
 ```
 

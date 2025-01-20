@@ -83,11 +83,18 @@ local defaults = {
     python = M.create_system_executor("python"),
     rust = execute_rust_code,
   },
+  keymaps = {
+    slide_next = "n",
+    slide_prev = "p",
+    quit = "q",
+    execute = "X",
+  }
 }
 
 ---@class present.Options
 ---@field executors table<string, function>: The executors for the different languages
 ---@field syntax present.SyntaxOptions: The syntax for the plugin
+---@field keymaps table<string, string>: The keymaps to control slide show
 
 ---@class present.SyntaxOptions
 ---@field comment string?: The prefix for comments, will skip lines that start with this
@@ -100,12 +107,14 @@ local options = {
     stop = "<!%-%-%s*stop%s*%-%->",
   },
   executors = {},
+  keymaps = {},
 }
 
 --- Setup the plugin
 ---@param opts present.Options
 M.setup = function(opts)
-  options = vim.tbl_deep_extend("force", defaults, opts or {})
+  options = vim.tbl_deep_extend("force", defaults, options)
+  options = vim.tbl_deep_extend("force", options, opts)
 end
 
 ---@class present.Slides
@@ -332,21 +341,21 @@ M.start_presentation = function(opts)
     vim.api.nvim_buf_set_lines(state.floats.footer.buf, 0, -1, false, { footer })
   end
 
-  present_keymap("n", "n", function()
+  present_keymap("n", options.keymaps.slide_next or defaults.keymaps.slide_next, function()
     state.current_slide = math.min(state.current_slide + 1, #state.parsed.slides)
     set_slide_content(state.current_slide)
   end)
 
-  present_keymap("n", "p", function()
+  present_keymap("n", options.keymaps.slide_prev or defaults.keymaps.slide_prev, function()
     state.current_slide = math.max(state.current_slide - 1, 1)
     set_slide_content(state.current_slide)
   end)
 
-  present_keymap("n", "q", function()
+  present_keymap("n", options.keymaps.quit or defaults.keymaps.quit, function()
     vim.api.nvim_win_close(state.floats.body.win, true)
   end)
 
-  present_keymap("n", "X", function()
+  present_keymap("n", options.keymaps.execute or defaults.keymaps.execute, function()
     local slide = state.parsed.slides[state.current_slide]
     -- TODO: Make a way for people to execute this for other languages
     local block = slide.blocks[1]
@@ -463,4 +472,10 @@ end
 
 M._parse_slides = parse_slides
 
+vim.api.nvim_create_user_command("PresentStart", function()
+  -- Easy Reloading
+  -- package.loaded["present"] = nil
+
+  M.start_presentation()
+end, {})
 return M
